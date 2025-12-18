@@ -10,7 +10,7 @@ def crop_with_margin(image: np.ndarray, box: np.ndarray, margin: int = 5) -> np.
     Args:
         image (np.ndarray): Array de la imagen.
         box (np.ndarray[int]): Coordenadas de la caja para el recorte.
-        margin (int): tamaño en Pixeles del margen alredor de la caja. Default: 5.
+        margin (int): Tamaño en Pixeles del margen alredor de la caja. Default: 5.
 
     Returns:
         np.ndarray: Array de la imagen recortada
@@ -61,7 +61,7 @@ def process_folder(folder_path: Path, detector: Any, classifier: Any, margin: in
         folder_path (Path): Ruta del directorio que contiene las imágenes.
         detector (Any): Modelo de detección.
         classifier (Any): Modelo de clasificación.
-        margin (int, optional):  Tamaño en pixeles del margen alredor de la caja. Default: 5.
+        margin (int, optional):  Tamaño en Pixeles del margen alredor de la caja. Default: 5.
     """
     output_folder = folder_path / "recortes"
     output_folder.mkdir(exist_ok=True)
@@ -69,4 +69,47 @@ def process_folder(folder_path: Path, detector: Any, classifier: Any, margin: in
     # Iterar sobre imágenes ordenadas alfabéticamente
     for image_path in sorted(folder_path.glob("*.jpg")):
         process_image(image_path, output_folder, detector, classifier, margin)
+
+def process_detection_only(image_path: Path, output_folder: Path, detector: Any, margin: int = 5) -> None:
+    """
+    Realiza la detección de objetos y guarda los recortes sin clasificarlos.
+    Nos ayudará para analizar la calidad del detector.
+	Args:
+        image_path (Path): Ruta del archivo de imagen individual a procesar.
+        output_folder (Path): Carpeta donde se guardarán los archivos recortados.
+        detector (Any): Modelo de detección (con método .predictor).
+        margin (int, optional): Tamaño en Pixeles del margen alredor de la caja. Default: 5.
+    """
+    image = np.array(Image.open(image_path).convert("RGB"))
+    results = detector.predictor(image)
+
+    for i, result in enumerate(results):
+        boxes = result.boxes.xyxy.cpu().numpy()
+		#Verificación
+        if boxes.size == 0:
+            print(f" Imagen vacía -> {image_path.name}")
+            continue
+        
+        for j, box in enumerate(boxes):
+            cropped = crop_with_margin(result.orig_img, box, margin)
+            
+            # Nombramos el archivo
+            # Estructura: Original_det[NumDeteccion]_[NumCaja].jpg
+            output_name = output_folder / f"{image_path.stem}_det{i+1}_{j+1}.jpg"
+            Image.fromarray(cropped).save(output_name)
+
+def process_folder_detection_only(folder_path: Path, detector: Any, margin: int = 5) -> None:
+    """
+	Procesa un folder completo solo con detección.
+	Args:
+        folder_path (Path): Ruta del directorio que contiene las imágenes originales.
+        detector (Any): Modelo de detección.
+        margin (int, optional): Tamaño en Pixeles del margen alredor de la caja. Default: 5.
+		
+	"""
+    output_folder = folder_path / "recortes_sin_clasificar"
+    output_folder.mkdir(exist_ok=True)
+
+    for image_path in sorted(folder_path.glob("*.jpg")):
+        process_detection_only(image_path, output_folder, detector, margin)
 
