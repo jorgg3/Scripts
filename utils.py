@@ -9,12 +9,13 @@ def crop_with_margin(image: np.ndarray, box: np.ndarray, margin: int = 5) -> np.
 
     Args:
         image (np.ndarray): Array de la imagen.
-        box (np.ndarray[int]): Coordenadas de la caja para el recorte.
-        margin (int): Tamaño en Pixeles del margen alredor de la caja. Default: 5.
+        box (np.ndarray[int]): Coordenadas de la caja para el recorte. Se asegura de tomar solo los primeros 4 valores.
+		margin (int): Tamaño en Pixeles del margen alredor de la caja. Default: 5.
 
     Returns:
         np.ndarray: Array de la imagen recortada
     """
+	box = box[:4]
     x1, y1, x2, y2 = box.astype(int)
     height, width, _ = image.shape
     x1 = max(0, x1 - margin)
@@ -80,24 +81,25 @@ def process_detection_only(image_path: Path, output_folder: Path, detector: Any,
         detector (Any): Modelo de detección (con método .predictor).
         margin (int, optional): Tamaño en Pixeles del margen alredor de la caja. Default: 5.
     """
-    image = np.array(Image.open(image_path).convert("RGB"))
-    results = detector.predictor(image)
+    try:
+        image = np.array(Image.open(image_path).convert("RGB"))
+        results = detector.predictor(image) 
+		found_animal = False
+        for i, result in enumerate(results):
+            boxes = result.boxes.xyxy.cpu().numpy()   
+            if len(boxes) > 0:
+                found_animal = True    
+            for j, box in enumerate(boxes):
+                cropped = crop_with_margin(image, box, margin)
+                # Guardar como: NombreOriginal_crop_ÍndiceDetección_ÍndiceCaja.jpg
+                output_name = output_folder / f"{image_path.stem}_crop_{i}_{j}.jpg"
+                Image.fromarray(cropped).save(output_name)
 
-    for i, result in enumerate(results):
-        boxes = result.boxes.xyxy.cpu().numpy()
-		#Verificación
-        if boxes.size == 0:
+        if not found_animal:
             print(f" Imagen vacía -> {image_path.name}")
-            continue
-        
-        for j, box in enumerate(boxes):
-            cropped = crop_with_margin(result.orig_img, box, margin)
             
-            # Nombramos el archivo
-            # Estructura: Original_det[NumDeteccion]_[NumCaja].jpg
-            output_name = output_folder / f"{image_path.stem}_det{i+1}_{j+1}.jpg"
-            Image.fromarray(cropped).save(output_name)
-
+    except Exception as e:
+        print(f"Error procesando {image_path.name}: {e}")
 def process_folder_detection_only(folder_path: Path, detector: Any, margin: int = 5) -> None:
     """
 	Procesa un folder completo solo con detección.
@@ -107,9 +109,31 @@ def process_folder_detection_only(folder_path: Path, detector: Any, margin: int 
         margin (int, optional): Tamaño en Pixeles del margen alredor de la caja. Default: 5.
 		
 	"""
-    output_folder = folder_path / "recortes_sin_clasificar"
+    output_folder =folder_path.parent / (folder_path.name + "_recortes")
     output_folder.mkdir(exist_ok=True)
+	print(f"Procesando directorio: {folder_path}")
+    print(f"Directorio de salida: {output_folder}")
+    images = get_images_from_folder(folder_path)
+    print(f"Se encontraron {len(images)} imágenes para procesar."
 
     for image_path in sorted(folder_path.glob("*.jpg")):
         process_detection_only(image_path, output_folder, detector, margin)
+
+def get_images_from_folder(folder_path: Path) -> List[Path]:
+    """
+    Busca  imágenes con extensiones comunes (.jpg, .png, etc.) 
+    en una carpeta, sin distinguir entre mayúsculas y minúsculas.
+
+    Args:
+        folder_path (Path): Ruta del directorio a explorar.
+
+    Returns:
+        List[Path]: Lista ordenada de rutas a los archivos de imagen encontrados.
+    """
+    extensions = ['*.jpg', '*.JPG', '*.jpeg', '*.JPEG', '*.png', '*.PNG']
+    files = []
+    for ext in extensions:
+        files.extend(folder_path.glob(ext))
+    return sorted(list(set(files)))
+
 
