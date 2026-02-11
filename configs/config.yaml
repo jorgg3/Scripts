@@ -1,0 +1,47 @@
+# training
+conf_id: Prueba_UltimaCapa_ResNet50
+algorithm: Plain     
+log_dir: Results
+num_epochs: 15       
+log_interval: 10
+parallel: 0
+
+# data
+dataset_root: ./imgs  
+
+dataset_name: Custom_Crop
+
+# annotation directory
+annotation_dir: ./imgs
+
+# data splitting
+split_data: False
+split_path: ""  
+test_size: 0.2
+val_size: 0.2
+split_type: random
+
+# data loading
+batch_size: 32        
+num_workers: 4        
+
+# model
+num_classes: 2        # Vaca vs No Vaca
+model_name: PlainResNetClassifier
+num_layers: 50        
+weights_init: ImageNet
+
+# optim
+## feature (Backbone Congelado)
+lr_feature: 0.0       #No hace falta
+momentum_feature: 0.9
+weight_decay_feature: 0.0005
+
+## classifier (Cabeza que aprende)
+lr_classifier: 0.001  # 0.001 es mejor para no ir muy rápido
+momentum_classifier: 0.9
+weight_decay_classifier: 0.0005
+
+## lr_scheduler
+step_size: 7          # Bajado a 7 para que ajuste el ritmo a la mitad 
+gamma: 0.1
